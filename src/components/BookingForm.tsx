@@ -3,6 +3,7 @@ import { CalendarCheck, CheckCircle2, Clock, Phone, Shield, type LucideIcon } fr
 import Reveal from '@/components/Reveal';
 import SectionHeading from '@/components/SectionHeading';
 import { bookingTimeSlots, services, studioContacts } from '@/data/studio';
+import { submitBooking } from '@/lib/bookings';
 
 interface BookingFormState {
   name: string;
@@ -47,6 +48,7 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
   const [form, setForm] = useState<BookingFormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [submitError, setSubmitError] = useState('');
 
   const selectedService = services.find((service) => service.id === serviceId);
 
@@ -61,14 +63,32 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    if (!selectedService) return;
+
     setStatus('submitting');
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    setStatus('success');
+    setSubmitError('');
+    try {
+      await submitBooking({
+        client_name: form.name.trim(),
+        phone: form.phone.trim(),
+        car: form.car.trim(),
+        service_id: selectedService.id,
+        service_name: selectedService.name,
+        appointment_date: form.date,
+        appointment_time: form.time,
+        comment: form.comment.trim(),
+      });
+      setStatus('success');
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Не удалось отправить заявку.');
+      setStatus('idle');
+    }
   };
 
   const resetForm = () => {
     setForm(emptyForm);
     setErrors({});
+    setSubmitError('');
     setStatus('idle');
   };
 
@@ -118,6 +138,7 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
                       onChange={(event) => updateField('name', event.target.value)}
                       placeholder="Иван Петров"
                       autoComplete="name"
+                      maxLength={100}
                       className={inputClass}
                     />
                   </Field>
@@ -128,6 +149,7 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
                       onChange={(event) => updateField('phone', event.target.value)}
                       placeholder="+7 (___) ___-__-__"
                       autoComplete="tel"
+                      maxLength={25}
                       className={inputClass}
                     />
                   </Field>
@@ -139,6 +161,7 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
                     value={form.car}
                     onChange={(event) => updateField('car', event.target.value)}
                     placeholder="Например, Kia Sportage, белый"
+                    maxLength={120}
                     className={inputClass}
                   />
                 </Field>
@@ -197,9 +220,16 @@ export default function BookingForm({ serviceId, onServiceChange }: BookingFormP
                     value={form.comment}
                     onChange={(event) => updateField('comment', event.target.value)}
                     placeholder="Например, есть царапины на заднем бампере"
+                    maxLength={1000}
                     className={`${inputClass} resize-none`}
                   />
                 </Field>
+
+                {submitError && (
+                  <p role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {submitError}
+                  </p>
+                )}
 
                 <button
                   type="submit"
